@@ -59,6 +59,21 @@ bitflags::bitflags! {
 
 /// The memory attributes index field in the descriptor, which is used to index
 /// into the MAIR (Memory Attribute Indirection Register).
+#[cfg(feature = "crosvm")]
+#[repr(u64)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum MemAttr {
+    /// Device-nGnRE memory
+    Device = 0,
+    /// Normal memory
+    Normal = 3,
+    /// Normal non-cacheable memory
+    NormalNonCacheable = 1,
+}
+
+/// The memory attributes index field in the descriptor, which is used to index
+/// into the MAIR (Memory Attribute Indirection Register).
+#[cfg(not(feature = "crosvm"))]
 #[repr(u64)]
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum MemAttr {
@@ -69,6 +84,7 @@ pub enum MemAttr {
     /// Normal non-cacheable memory
     NormalNonCacheable = 2,
 }
+
 
 impl DescriptorAttr {
     #[allow(clippy::unusual_byte_groupings)]
@@ -99,6 +115,7 @@ impl DescriptorAttr {
 impl MemAttr {
     /// The MAIR_ELx register should be set to this value to match the memory
     /// attributes in the descriptors.
+    #[cfg(not(feature = "crosvm"))]
     pub const MAIR_VALUE: u64 = {
         // Device-nGnRE memory
         let attr0 = MAIR_EL1::Attr0_Device::nonGathering_nonReordering_EarlyWriteAck.value;
@@ -108,6 +125,24 @@ impl MemAttr {
         let attr2 = MAIR_EL1::Attr2_Normal_Inner::NonCacheable.value
             + MAIR_EL1::Attr2_Normal_Outer::NonCacheable.value;
         attr0 | attr1 | attr2 // 0x44_ff_04
+    };
+
+    /// The MAIR_ELx register should be set to this value to match the memory
+    /// attributes in the descriptors.
+    #[cfg(feature = "crosvm")]
+    pub const MAIR_VALUE: u64 = {
+        // 00
+        let attr0 = MAIR_EL1::Attr0_Device::nonGathering_nonReordering_noEarlyWriteAck.value;
+        // 44
+        let attr1 = MAIR_EL1::Attr1_Normal_Inner::NonCacheable.value
+                + MAIR_EL1::Attr1_Normal_Outer::NonCacheable.value;
+        // bb
+        let attr2 = MAIR_EL1::Attr2_Normal_Inner::WriteThrough_NonTransient_ReadWriteAlloc.value
+            + MAIR_EL1::Attr2_Normal_Outer::WriteThrough_NonTransient_ReadWriteAlloc.value;
+        // ff
+        let attr3 = MAIR_EL1::Attr3_Normal_Inner::WriteBack_NonTransient_ReadWriteAlloc.value +
+        MAIR_EL1::Attr3_Normal_Outer::WriteBack_NonTransient_ReadWriteAlloc.value;
+        attr0 | attr1 | attr2 | attr3 // 0xff_bb_44_00
     };
 }
 
