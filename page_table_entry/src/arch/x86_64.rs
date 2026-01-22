@@ -59,6 +59,7 @@ pub struct X64PTE(u64);
 
 impl X64PTE {
     const PHYS_ADDR_MASK: u64 = 0x000f_ffff_ffff_f000; // bits 12..52
+    const SEV_CBIT: u64 = if cfg!(feature = "sev") { 1u64 << 47 } else { 0 };
 
     /// Creates an empty descriptor with all bits set to zero.
     pub const fn empty() -> Self {
@@ -72,20 +73,30 @@ impl GenericPTE for X64PTE {
         if is_huge {
             flags |= PTF::HUGE_PAGE;
         }
-        Self(flags.bits() | (paddr.as_usize() as u64 & Self::PHYS_ADDR_MASK))
+        Self(
+            flags.bits()
+                | (paddr.as_usize() as u64 & Self::PHYS_ADDR_MASK)
+                | Self::SEV_CBIT,
+        )
     }
     fn new_table(paddr: PhysAddr) -> Self {
         let flags = PTF::PRESENT | PTF::WRITABLE | PTF::USER_ACCESSIBLE;
-        Self(flags.bits() | (paddr.as_usize() as u64 & Self::PHYS_ADDR_MASK))
+        Self(
+            flags.bits()
+                | (paddr.as_usize() as u64 & Self::PHYS_ADDR_MASK)
+                | Self::SEV_CBIT,
+        )
     }
     fn paddr(&self) -> PhysAddr {
-        PhysAddr::from((self.0 & Self::PHYS_ADDR_MASK) as usize)
+        PhysAddr::from(((self.0 & Self::PHYS_ADDR_MASK) & !Self::SEV_CBIT) as usize)
     }
     fn flags(&self) -> MappingFlags {
         PTF::from_bits_truncate(self.0).into()
     }
     fn set_paddr(&mut self, paddr: PhysAddr) {
-        self.0 = (self.0 & !Self::PHYS_ADDR_MASK) | (paddr.as_usize() as u64 & Self::PHYS_ADDR_MASK)
+        self.0 = (self.0 & !Self::PHYS_ADDR_MASK)
+            | (paddr.as_usize() as u64 & Self::PHYS_ADDR_MASK)
+            | Self::SEV_CBIT
     }
     fn set_flags(&mut self, flags: MappingFlags, is_huge: bool) {
         let mut flags = PTF::from(flags);

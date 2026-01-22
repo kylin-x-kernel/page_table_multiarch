@@ -16,6 +16,7 @@ rust-version.workspace = true
 default = []
 axerrno = ["dep:axerrno"]
 copy-from = ["dep:bitmaps"]
+sev = ["page_table_entry/sev"]
 
 [dependencies]
 axerrno = { version = "0.1", optional = true }
